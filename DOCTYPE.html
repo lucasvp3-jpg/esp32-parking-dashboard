@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Parking Sensor - ESP32C3</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --bg-far: #0f766e;      /* verde distante */
+      --bg-mid: #ca8a04;      /* amarelo */
+      --bg-near: #ea580c;     /* laranja */
+      --bg-danger: #b91c1c;   /* vermelho */
+      --card-bg: #0b1120;
+      --text-main: #e5e7eb;
+      --text-muted: #9ca3af;
+      --accent: #38bdf8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #1f2933 0, #020617 60%);
+      color: var(--text-main);
+      padding: 16px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--card-bg);
+      border-radius: 18px;
+      padding: 18px 18px 20px;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+
+    .subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .status-pill {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #f97316;
+    }
+
+    .status-pill[data-status="connected"] .status-dot {
+      background: #22c55e;
+    }
+
+    .status-pill[data-status="disconnected"] .status-dot {
+      background: #ef4444;
+    }
+
+    .status-pill[data-status="connecting"] .status-dot {
+      background: #f97316;
+    }
+
+    .status-text {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .main-display {
+      margin-top: 6px;
+      margin-bottom: 14px;
+      border-radius: 16px;
+      padding: 16px;
+      background: linear-gradient(135deg, #0f172a, #020617);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .distance-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--text-muted);
+    }
+
+    .distance-value {
+      font-size: 40px;
+      font-weight: 600;
+      line-height: 1;
+    }
+
+    .distance-unit {
+      font-size: 16px;
+      margin-left: 4px;
+      color: var(--text-muted);
+    }
+
+    .distance-zone {
+      font-size: 13px;
+      margin-top: 3px;
+      color: var(--text-muted);
+    }
+
+    .proximity-card {
+      margin-top: 2px;
+      margin-bottom: 10px;
+      padding: 12px;
+      border-radius: 14px;
+      background: #020617;
+      border: 1px solid rgba(55, 65, 81, 0.9);
+    }
+
+    .proximity-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .bar-container {
+      width: 100%;
+      height: 18px;
+      border-radius: 999px;
+      background: #020617;
+      border: 1px solid rgba(75, 85, 99, 0.9);
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #22c55e, #facc15, #f97316, #ef4444);
+      transition: width 0.15s ease-out;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .chip {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      padding: 3px 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .chip span:first-child {
+      color: var(--accent);
+    }
+
+    .small {
+      font-size: 11px;
+    }
+
+    .badge-zone {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 11px;
+    }
+
+    .badge-zone span {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--bg-far);
+    }
+
+    .badge-zone[data-zone="MID"] span {
+      background: var(--bg-mid);
+    }
+
+    .badge-zone[data-zone="NEAR"] span {
+      background: var(--bg-near);
+    }
+
+    .badge-zone[data-zone="DANGER"] span {
+      background: var(--bg-danger);
+    }
+
+    .badge-zone[data-zone="NO_DATA"] span {
+      background: #4b5563;
+    }
+
+    .badge-zone[data-zone="NO_DATA"] {
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div>
+        <div class="title">Parking Sensor</div>
+        <div class="subtitle">ESP32-C3 → HiveMQ Cloud</div>
+      </div>
+      <div id="connStatus" class="status-pill" data-status="connecting">
+        <span class="status-dot"></span>
+        <span class="status-text">Conectando</span>
+      </div>
+    </div>
+
+    <div class="main-display" id="mainDisplay">
+      <div class="distance-label">Distância atual</div>
+      <div>
+        <span id="distanceValue" class="distance-value">--</span>
+        <span class="distance-unit">cm</span>
+      </div>
+      <div class="distance-zone">
+        Zona: 
+        <span id="zoneBadge" class="badge-zone" data-zone="NO_DATA">
+          <span></span>
+          <strong id="zoneText">Sem leitura</strong>
+        </span>
+      </div>
+    </div>
+
+    <div class="proximity-card">
+      <div class="proximity-header">
+        <span>Proximidade</span>
+        <span id="proximityLabel" class="small">Sem dados</span>
+      </div>
+      <div class="bar-container">
+        <div id="barFill" class="bar-fill"></div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="chip">
+        <span>TOPIC</span>
+        <span>esp32c3/parking/distancia_cm</span>
+      </div>
+      <div id="lastUpdate" class="small">Última leitura: --</div>
+    </div>
+  </div>
+
+  <!-- mqtt.js via CDN -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script>
+    // ========= CONFIGURAÇÃO MQTT (HiveMQ Cloud) =========
+    const brokerUrl = "wss://ca7b613051dd4465878297126967d2b1.s1.eu.hivemq.cloud:8884/mqtt";
+    const mqttOptions = {
+      username: "luvp3",
+      password: "Mackenzie1",
+      clean: true,
+      connectTimeout: 4000,
+      reconnectPeriod: 3000
+    };
+    const topicDistance = "esp32c3/parking/distancia_cm";
+
+    // ========= ELEMENTOS DE UI =========
+    const connStatusEl = document.getElementById("connStatus");
+    const statusTextEl = connStatusEl.querySelector(".status-text");
+    const distanceValueEl = document.getElementById("distanceValue");
+    const mainDisplayEl = document.getElementById("mainDisplay");
+    const barFillEl = document.getElementById("barFill");
+    const lastUpdateEl = document.getElementById("lastUpdate");
+    const proximityLabelEl = document.getElementById("proximityLabel");
+    const zoneBadgeEl = document.getElementById("zoneBadge");
+    const zoneTextEl = document.getElementById("zoneText");
+
+    // ========= HELPERS =========
+    function setConnStatus(status) {
+      connStatusEl.dataset.status = status;
+      if (status === "connected") {
+        statusTextEl.textContent = "Conectado";
+      } else if (status === "disconnected") {
+        statusTextEl.textContent = "Offline";
+      } else {
+        statusTextEl.textContent = "Conectando";
+      }
+    }
+
+    function classifyZone(distanceCm) {
+      if (isNaN(distanceCm)) return "NO_DATA";
+      if (distanceCm <= 8)  return "DANGER";
+      if (distanceCm <= 30) return "NEAR";
+      if (distanceCm <= 80) return "MID";
+      return "FAR";
+    }
+
+    function zoneToText(zone) {
+      switch (zone) {
+        case "DANGER": return "PERIGO";
+        case "NEAR":   return "Perto";
+        case "MID":    return "Médio";
+        case "FAR":    return "Longe";
+        default:       return "Sem leitura";
+      }
+    }
+
+    function zoneToBackground(zone) {
+      switch (zone) {
+        case "DANGER": return "linear-gradient(135deg, #450a0a, #b91c1c)";
+        case "NEAR":   return "linear-gradient(135deg, #7c2d12, #ea580c)";
+        case "MID":    return "linear-gradient(135deg, #78350f, #ca8a04)";
+        case "FAR":    return "linear-gradient(135deg, #022c22, #0f766e)";
+        default:       return "linear-gradient(135deg, #0f172a, #020617)";
+      }
+    }
+
+    function updateUI(distanceCm) {
+      if (isNaN(distanceCm)) {
+        distanceValueEl.textContent = "--";
+        barFillEl.style.width = "0%";
+        proximityLabelEl.textContent = "Sem dados";
+        zoneBadgeEl.dataset.zone = "NO_DATA";
+        zoneTextEl.textContent = "Sem leitura";
+        mainDisplayEl.style.background = zoneToBackground("NO_DATA");
+        return;
+      }
+
+      const d = Math.max(0, Math.min(200, distanceCm)); // clamp 0–200
+      distanceValueEl.textContent = d.toFixed(1);
+
+      // Barra de proximidade (0 = longe, 100 = colado)
+      const proximity = 100 - (d / 200) * 100; // 0–200 cm -> 0–100 inverso
+      barFillEl.style.width = proximity.toFixed(1) + "%";
+
+      // Texto proximidade
+      if (d > 120) {
+        proximityLabelEl.textContent = "Objeto distante";
+      } else if (d > 60) {
+        proximityLabelEl.textContent = "Aproximando";
+      } else if (d > 30) {
+        proximityLabelEl.textContent = "Perto";
+      } else {
+        proximityLabelEl.textContent = "Muito perto!";
+      }
+
+      // Zona e cor de fundo
+      const zone = classifyZone(d);
+      zoneBadgeEl.dataset.zone = zone;
+      zoneTextEl.textContent = zoneToText(zone);
+      mainDisplayEl.style.background = zoneToBackground(zone);
+
+      // Timestamp
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      const ss = String(now.getSeconds()).padStart(2, "0");
+      lastUpdateEl.textContent = `Última leitura: ${hh}:${mm}:${ss}`;
+    }
+
+    // ========= MQTT CLIENT =========
+    setConnStatus("connecting");
+    const client = mqtt.connect(brokerUrl, mqttOptions);
+
+    client.on("connect", () => {
+      setConnStatus("connected");
+      console.log("MQTT conectado");
+
+      client.subscribe(topicDistance, (err) => {
+        if (err) {
+          console.error("Erro ao assinar tópico:", err);
+        } else {
+          console.log("Assinado em", topicDistance);
+        }
+      });
+    });
+
+    client.on("reconnect", () => {
+      setConnStatus("connecting");
+      console.log("MQTT reconectando...");
+    });
+
+    client.on("error", (err) => {
+      console.error("Erro MQTT:", err);
+      setConnStatus("disconnected");
+    });
+
+    client.on("close", () => {
+      console.log("Conexão MQTT fechada");
+      setConnStatus("disconnected");
+    });
+
+    client.on("message", (topic, payload) => {
+      if (topic === topicDistance) {
+        const msg = payload.toString();
+        const value = parseFloat(msg);
+        console.log("Distância recebida:", msg);
+        updateUI(value);
+      }
+    });
+
+    // Estado inicial
+    updateUI(NaN);
+  </script>
+</body>
+</html>
